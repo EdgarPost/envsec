@@ -41,15 +41,20 @@
 
             enableFishIntegration = lib.mkEnableOption "Fish shell integration for envsec";
 
-            settings = lib.mkOption {
-              type = lib.types.attrs;
-              default = { };
-              description = "envsec configuration options.";
+            storePath = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "~/Code/envsec";
+              description = "Override the storage directory. Defaults to $XDG_DATA_HOME/envsec.";
             };
           };
 
           config = lib.mkIf cfg.enable {
             home.packages = [ cfg.package ];
+
+            home.sessionVariables = lib.mkIf (cfg.storePath != null) {
+              ENVSEC_STORE = cfg.storePath;
+            };
 
             programs.fish.interactiveShellInit = lib.mkIf cfg.enableFishIntegration ''
               envsec hook --shell fish | source

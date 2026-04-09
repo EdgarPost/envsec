@@ -49,28 +49,41 @@ type config struct {
 	} `toml:"filesystem"`
 }
 
+func defaultStorePath() string {
+	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
+		return filepath.Join(dir, "envsec")
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".local", "share", "envsec")
+}
+
 func loadConfig() config {
 	home, _ := os.UserHomeDir()
 	cfg := config{Store: "filesystem"}
-	cfg.Filesystem.Path = filepath.Join(home, "Code", "envsec")
+	cfg.Filesystem.Path = defaultStorePath()
 
+	// Config file
 	configDir := os.Getenv("XDG_CONFIG_HOME")
 	if configDir == "" {
 		configDir = filepath.Join(home, ".config")
 	}
 
 	data, err := os.ReadFile(filepath.Join(configDir, "envsec", "config.toml"))
-	if err != nil {
-		return cfg
+	if err == nil {
+		if err := toml.Unmarshal(data, &cfg); err == nil {
+			// Expand ~ in path
+			if len(cfg.Filesystem.Path) >= 2 && cfg.Filesystem.Path[:2] == "~/" {
+				cfg.Filesystem.Path = filepath.Join(home, cfg.Filesystem.Path[2:])
+			}
+		}
 	}
 
-	if err := toml.Unmarshal(data, &cfg); err != nil {
-		return cfg
-	}
-
-	// Expand ~ in path
-	if len(cfg.Filesystem.Path) >= 2 && cfg.Filesystem.Path[:2] == "~/" {
-		cfg.Filesystem.Path = filepath.Join(home, cfg.Filesystem.Path[2:])
+	// ENVSEC_STORE env var takes highest priority
+	if dir := os.Getenv("ENVSEC_STORE"); dir != "" {
+		if len(dir) >= 2 && dir[:2] == "~/" {
+			dir = filepath.Join(home, dir[2:])
+		}
+		cfg.Filesystem.Path = dir
 	}
 
 	return cfg
