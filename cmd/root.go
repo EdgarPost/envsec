@@ -2,16 +2,17 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
-	"github.com/EdgarPost/envsec/config"
 	"github.com/EdgarPost/envsec/store"
 	"github.com/EdgarPost/envsec/store/fs"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 )
 
 var (
-	cfg   config.Config
-	st    store.Store
+	st store.Store
 	// Set via ldflags
 	version = "dev"
 )
@@ -26,7 +27,7 @@ func Execute() error {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(initStore)
 
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(setCmd)
@@ -41,13 +42,42 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-func initConfig() {
-	var err error
-	cfg, err = config.Load()
-	if err != nil {
-		fmt.Fprintf(rootCmd.ErrOrStderr(), "warning: failed to load config: %v\n", err)
-		cfg = config.Default()
+type config struct {
+	Store      string `toml:"store"`
+	Filesystem struct {
+		Path string `toml:"path"`
+	} `toml:"filesystem"`
+}
+
+func loadConfig() config {
+	home, _ := os.UserHomeDir()
+	cfg := config{Store: "filesystem"}
+	cfg.Filesystem.Path = filepath.Join(home, "Code", "envsec")
+
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" {
+		configDir = filepath.Join(home, ".config")
 	}
+
+	data, err := os.ReadFile(filepath.Join(configDir, "envsec", "config.toml"))
+	if err != nil {
+		return cfg
+	}
+
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return cfg
+	}
+
+	// Expand ~ in path
+	if len(cfg.Filesystem.Path) >= 2 && cfg.Filesystem.Path[:2] == "~/" {
+		cfg.Filesystem.Path = filepath.Join(home, cfg.Filesystem.Path[2:])
+	}
+
+	return cfg
+}
+
+func initStore() {
+	cfg := loadConfig()
 	st = fs.New(cfg.Filesystem.Path)
 }
 
