@@ -16,7 +16,7 @@
           pname = "envsec";
           version = "0.1.0";
           src = ./.;
-          vendorHash = null; # Update after first build
+          vendorHash = "sha256-C2pSj/1UZei+Us78cCIwbz76fRtjQxFioZiIDypGgns=";
           ldflags = [ "-s" "-w" "-X github.com/EdgarPost/envsec/cmd.version=0.1.0" ];
         };
 
